@@ -37,6 +37,12 @@ Run the following command to put `config.py` ESP32.
 pyboard.py -d /dev/ttyUSB0 -f cp config.py :
 ```
 
+Run the following command to install `mqtt.simple` library.
+
+```bash
+micropython -m mip install umqtt.simple
+```
+
 Run the following command to run `main.py` on ESP32.
 
 ```bash
