@@ -1,6 +1,19 @@
-from machine import Pin, SoftI2C
+import config
+
 import time
+import network
+import ubinascii
+from machine import Pin, SoftI2C, unique_id
 from struct import unpack, unpack_from
+from umqtt.simple import MQTTClient
+
+WIFI_SSID = config.WIFI_SSID
+WIFI_PASSWORD = config.WIFI_PASSWORD
+
+CLIENT_ID = ubinascii.hexlify(unique_id())
+SERVER = config.SERVER_MQTT_BROKER
+
+TOPIC_PREFIX = "i483/sensors/2410064"
 
 SCD41_I2C_ADDRESS = 0x62
 BMP180_I2C_ADDRESS = 0x77
@@ -11,11 +24,26 @@ print([hex(i) for i in i2c.scan()])
 i2c.writeto(SCD41_I2C_ADDRESS, bytearray([0x00]))
 print(f"SCD41 sensor found at {SCD41_I2C_ADDRESS:#x}")
 
+station_if = network.WLAN(network.STA_IF)
+
+station_if.active(True)
+time.sleep(1)
+station_if.connect(WIFI_SSID, WIFI_PASSWORD)
+print("Successfully connected to Wi-Fi!")
+print('Network config:', station_if.ifconfig())
+
 def main():
     scd41_stop_periodic_measurement()
     time.sleep(1)
     scd41_start_periodic_measurement()
     print("SCD41: initialization finished")
+
+    client = MQTTClient(CLIENT_ID, SERVER)
+    client.set_callback(read_message)
+    client.connect()
+    print(f"Connected to MQTT Broker {SERVER}")
+
+    client.subscribe(bytearray(TOPIC_PREFIX))
 
     while True:
         for i in range(15, 0, -1):
@@ -39,6 +67,9 @@ def main():
         raw_temperature = bmp180_read_temperature(i2c)
         raw_pressure = bmp180_read_pressure(i2c)
         compute(coef, raw_temperature, raw_pressure)
+
+def read_message(topic, message):
+    print(f"Received message {message} on topic {topic}")
 
 def scd41_start_periodic_measurement():
     write_buffer = bytearray([0x21, 0xb1])
