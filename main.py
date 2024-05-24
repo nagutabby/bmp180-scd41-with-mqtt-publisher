@@ -15,8 +15,8 @@ SERVER = config.SERVER_MQTT_BROKER
 
 TOPIC_PREFIX = "i483/sensors/2410064"
 
-SCD41_I2C_ADDRESS = 0x62
 BMP180_I2C_ADDRESS = 0x77
+SCD41_I2C_ADDRESS = 0x62
 
 i2c = SoftI2C(scl=Pin(33, pull=Pin.PULL_UP), sda=Pin(32, pull=Pin.PULL_UP))
 print([hex(i) for i in i2c.scan()])
@@ -27,23 +27,20 @@ print(f"SCD41 sensor found at {SCD41_I2C_ADDRESS:#x}")
 station_if = network.WLAN(network.STA_IF)
 
 station_if.active(True)
-time.sleep(1)
+time.sleep(2)
 station_if.connect(WIFI_SSID, WIFI_PASSWORD)
 print("Successfully connected to Wi-Fi!")
 print('Network config:', station_if.ifconfig())
+
+client = MQTTClient(CLIENT_ID, SERVER)
+client.connect()
+print(f"Connected to MQTT Broker {SERVER}")
 
 def main():
     scd41_stop_periodic_measurement()
     time.sleep(1)
     scd41_start_periodic_measurement()
     print("SCD41: initialization finished")
-
-    client = MQTTClient(CLIENT_ID, SERVER)
-    client.set_callback(read_message)
-    client.connect()
-    print(f"Connected to MQTT Broker {SERVER}")
-
-    client.subscribe(bytearray(TOPIC_PREFIX))
 
     while True:
         for i in range(15, 0, -1):
@@ -60,6 +57,10 @@ def main():
                 raw_humidity = (raw_measurement[6] << 8) | raw_measurement[7]
                 humidity = round(100 * (raw_humidity / (2 ** 16 - 1)), 1)
 
+                client.publish(f"{TOPIC_PREFIX}/SCD41/co2", str(co2), qos=1)
+                client.publish(f"{TOPIC_PREFIX}/SCD41/humidity", str(humidity), qos=1)
+                client.publish(f"{TOPIC_PREFIX}/SCD41/temperature", str(temperature), qos=1)
+
                 print(f"SCD41: CO2: {co2} ppm, Humidity: {humidity} %, Temperature: {temperature} °C")
         else:
             print("SCD41: no new data available")
@@ -67,9 +68,6 @@ def main():
         raw_temperature = bmp180_read_temperature(i2c)
         raw_pressure = bmp180_read_pressure(i2c)
         compute(coef, raw_temperature, raw_pressure)
-
-def read_message(topic, message):
-    print(f"Received message {message} on topic {topic}")
 
 def scd41_start_periodic_measurement():
     write_buffer = bytearray([0x21, 0xb1])
@@ -210,7 +208,13 @@ def compute(coef, raw_temp, raw_press):
     X2 = (-7357 * p) // (1 << 16)
     p = p + (X1 + X2 + 3791) // 16
 
-    print(f"BMP180: Temperature: {T / 10} °C, Pressure: {p / 100} hPa")
+    temperature = T / 10
+    pressure = p / 100
+
+    client.publish(f"{TOPIC_PREFIX}/BMP180/temperature", str(temperature), qos=1)
+    client.publish(f"{TOPIC_PREFIX}/BMP180/air_pressure", str(pressure), qos=1)
+
+    print(f"BMP180: Temperature: {temperature} °C, Pressure: {pressure} hPa")
 
 bmp180_read_chip_id(i2c)
 coef = bmp180_read_coefficients(i2c)
