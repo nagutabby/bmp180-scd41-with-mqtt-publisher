@@ -1,4 +1,4 @@
-# bmp180-scd41-with-mqtt
+# bmp180-scd41-with-mqtt-publisher
 ## Usage
 Create `pyboard` directory in your home directory.
 
