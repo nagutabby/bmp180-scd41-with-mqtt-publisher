@@ -13,7 +13,7 @@ WIFI_PASSWORD = config.WIFI_PASSWORD
 CLIENT_ID = ubinascii.hexlify(unique_id())
 SERVER = config.SERVER_MQTT_BROKER
 
-TOPIC_PREFIX = "i483/sensors/2410064"
+TOPIC_PREFIX = "i483/sensors/s2410064"
 
 BMP180_I2C_ADDRESS = 0x77
 SCD41_I2C_ADDRESS = 0x62
@@ -29,6 +29,8 @@ station_if = network.WLAN(network.STA_IF)
 station_if.active(True)
 time.sleep(2)
 station_if.connect(WIFI_SSID, WIFI_PASSWORD)
+while not station_if.isconnected():
+    time.sleep(1)
 print("Successfully connected to Wi-Fi!")
 print('Network config:', station_if.ifconfig())
 
